@@ -6,7 +6,7 @@ const Home = ({ auth }) => (
     <button
       onClick={() => {
         console.log(auth)
-        auth.logout();
+        auth.signOut();
       }}
     >
       Logout

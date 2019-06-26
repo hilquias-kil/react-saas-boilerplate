@@ -1,14 +1,13 @@
 import React from "react";
-import { BrowserRouter, Switch, Route } from "react-router-dom";
+import history from "../history";
+import { Router, Switch, Route } from "react-router-dom";
 
 // pages
 import Home from "../pages/Home";
 import Callback from "../pages/Callback";
 import NoMatch from "../pages/NoMatch";
 
-import Auth from "../auth/Auth";
-
-const auth = new Auth();
+import auth from "../auth/Auth";
 
 const handleAuthentication = ({ location }) => {
   if (/access_token|id_token|error/.test(location.hash)) {
@@ -18,17 +17,17 @@ const handleAuthentication = ({ location }) => {
 
 const checkAuth = Comp => {
   return props => {
-    console.log(auth.isAuthenticated())
-    if (! auth.isAuthenticated()) {
-      auth.login();
+    if (!auth.isAuthenticated()) {
+      auth.signIn();
+      return ""
     } else {
-      return <Comp auth={auth} {...props} />; 
+      return <Comp auth={auth} {...props} />;
     }
   };
 };
 
 const App = () => (
-  <BrowserRouter>
+  <Router history={history}>
     <Switch>
       <Route exact path="/" render={checkAuth(Home)} />
       <Route
@@ -40,7 +39,7 @@ const App = () => (
       />
       <Route component={NoMatch} />
     </Switch>
-  </BrowserRouter>
+  </Router>
 );
 
 export default App;

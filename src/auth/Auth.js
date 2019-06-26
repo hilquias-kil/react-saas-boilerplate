@@ -1,67 +1,72 @@
-import createHistory from "history/createBrowserHistory";
-import auth0 from "auth0-js";
+import auth0 from 'auth0-js';
+import history from "../history";
 import { AUTH_CONFIG } from "./auth0-variables";
 
-const history = createHistory();
-
-export default class Auth {
-  auth0 = new auth0.WebAuth({
-    domain: AUTH_CONFIG.domain,
-    clientID: AUTH_CONFIG.clientId,
-    redirectUri: window.location.origin + AUTH_CONFIG.callbackUrl,
-    responseType: "token id_token",
-    scope: "openid"
-  });
-
+class Auth {
   constructor() {
-    this.login = this.login.bind(this);
-    this.logout = this.logout.bind(this);
+    this.auth0 = new auth0.WebAuth({
+      // the following three lines MUST be updated
+      domain: AUTH_CONFIG.domain,
+      audience: `https://${AUTH_CONFIG.domain}/userinfo`,
+      clientID: AUTH_CONFIG.clientId,
+      redirectUri: window.location.origin + AUTH_CONFIG.callbackUrl,
+      responseType: 'token id_token',
+      scope: 'openid profile'
+    });
+
+    this.getProfile = this.getProfile.bind(this);
     this.handleAuthentication = this.handleAuthentication.bind(this);
     this.isAuthenticated = this.isAuthenticated.bind(this);
+    this.signIn = this.signIn.bind(this);
+    this.signOut = this.signOut.bind(this);
   }
 
-  login() {
+  getProfile() {
+    return this.profile;
+  }
+
+  getIdToken() {
+    return this.idToken;
+  }
+
+  isAuthenticated() {
+    return new Date().getTime() < this.expiresAt;
+  }
+
+  signIn() {
     this.auth0.authorize();
   }
 
   handleAuthentication() {
-    this.auth0.parseHash((err, authResult) => {
-      if (authResult && authResult.accessToken && authResult.idToken) {
-        this.setSession(authResult);
-        history.replace("/");
-      } else if (err) {
-        history.replace("/");
-        console.log(err);
-        alert(`Error: ${err.error}. Check the console for further details.`);
-      }
+    return new Promise((resolve, reject) => {
+      this.auth0.parseHash((err, authResult) => {
+        if (err) return reject(err);
+        if (!authResult || !authResult.idToken) {
+          return reject(err);
+        }
+        this.idToken = authResult.idToken;
+        this.profile = authResult.idTokenPayload;
+        // set the time that the id token will expire at
+        this.expiresAt = authResult.idTokenPayload.exp * 1000;
+        resolve();
+        history.push("/");
+      });
+    })
+  }
+
+  signOut() {
+    // clear id token, profile, and expiration
+    this.idToken = null;
+    this.profile = null;
+    this.expiresAt = null;
+
+    this.auth0.logout({
+      returnTo: window.location.origin,
+      client_id: AUTH_CONFIG.clientId
     });
   }
-
-  setSession(authResult) {
-    // Set the time that the access token will expire at
-    let expiresAt = JSON.stringify(
-      authResult.expiresIn * 1000 + new Date().getTime()
-    );
-    localStorage.setItem("access_token", authResult.accessToken);
-    localStorage.setItem("id_token", authResult.idToken);
-    localStorage.setItem("expires_at", expiresAt);
-    // navigate to the  route
-    history.replace("/");
-  }
-
-  logout() {
-    // Clear access token and ID token from local storage
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("id_token");
-    localStorage.removeItem("expires_at");
-    // navigate to the  route
-    this.auth0.logout();
-  }
-
-  isAuthenticated() {
-    // Check whether the current time is past the
-    // access token's expiry time
-    let expiresAt = JSON.parse(localStorage.getItem("expires_at"));
-    return new Date().getTime() < expiresAt;
-  }
 }
+
+const auth0Client = new Auth();
+
+export default auth0Client;
